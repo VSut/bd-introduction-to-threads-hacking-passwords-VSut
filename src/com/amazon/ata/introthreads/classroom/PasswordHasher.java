@@ -1,5 +1,6 @@
 package com.amazon.ata.introthreads.classroom;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -8,6 +9,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,9 +32,21 @@ public class PasswordHasher {
      */
     public static Map<String, String> generateAllHashes(List<String> passwords) throws InterruptedException {
         Map<String, String> passwordToHashes = Maps.newConcurrentMap();
-        BatchPasswordHasher batchHasher = new BatchPasswordHasher(passwords, DISCOVERED_SALT);
-        batchHasher.hashPasswords();
-        passwordToHashes.putAll(batchHasher.getPasswordToHashes());
+
+        List<List<String>> passwordSublist = Lists.partition(passwords,  passwords.size() /4);
+        List<BatchPasswordHasher> savedHashers = new ArrayList<>();
+        List<Thread> savedThreads = new ArrayList<>();
+        for (int i = 0; i < passwordSublist.size(); i++) {
+            BatchPasswordHasher aHasher = new BatchPasswordHasher(passwordSublist.get(i), DISCOVERED_SALT);
+            savedHashers.add(aHasher);
+            Thread aThread = new Thread(aHasher);
+            savedThreads.add(aThread);
+            aThread.start();
+        }
+        waitForThreadsToComplete(savedThreads);
+        for (BatchPasswordHasher hasher: savedHashers) {
+            passwordToHashes.putAll(hasher.getPasswordToHashes());
+        }
 
         return passwordToHashes;
     }
